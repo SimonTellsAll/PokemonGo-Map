@@ -616,6 +616,12 @@ function setupGymMarker(item) {
   return marker;
 }
 
+function updateGymMarker(item, marker) {
+  marker.setIcon('static/forts/' + gym_types[item.team_id] + '.png');
+  marker.infoWindow.setContent(gymLabel(gym_types[item.team_id], item.team_id, item.gym_points, item.latitude, item.longitude));
+  return marker;
+}
+
 function setupPokestopMarker(item) {
   var imagename = !!item.lure_expiration ? "PstopLured" : "Pstop";
   var marker = new google.maps.Marker({
@@ -656,6 +662,7 @@ function setupScannedMarker(item) {
 
   var marker = new google.maps.Circle({
     map: map,
+    clickable: false,
     center: circleCenter,
     radius: 70, // metres
     fillColor: getColorByDate(item.last_modified),
@@ -731,12 +738,12 @@ function showInBoundsMarkers(markers) {
     var marker = markers[key].marker;
     var show = false;
     if (!markers[key].hidden) {
-      if (typeof marker.getPosition === 'function') {
-        if (map.getBounds().contains(marker.getPosition())) {
+      if (typeof marker.getBounds === 'function') {
+        if (map.getBounds().intersects(marker.getBounds())) {
           show = true;
         }
-      } else if (typeof marker.getCenter === 'function') {
-        if (map.getBounds().contains(marker.getCenter())) {
+      } else if (typeof marker.getPosition === 'function') {
+        if (map.getBounds().contains(marker.getPosition())) {
           show = true;
         }
       }
@@ -879,21 +886,11 @@ function processGyms(i, item) {
   }
 
   if (item.gym_id in map_data.gyms) {
-    // if team has changed, create new marker (new icon)
-    if (map_data.gyms[item.gym_id].team_id != item.team_id) {
-      map_data.gyms[item.gym_id].marker.setMap(null);
-      map_data.gyms[item.gym_id].marker = setupGymMarker(item);
-    } else { // if it hasn't changed generate new label only (in case prestige has changed)
-      map_data.gyms[item.gym_id].marker.infoWindow = new google.maps.InfoWindow({
-        content: gymLabel(gym_types[item.team_id], item.team_id, item.gym_points, item.latitude, item.longitude),
-        disableAutoPan: true
-      });
-    }
+    item.marker = updateGymMarker(item, map_data.gyms[item.gym_id].marker);
   } else { // add marker to map and item to dict
-    if (item.marker) item.marker.setMap(null);
     item.marker = setupGymMarker(item);
-    map_data.gyms[item.gym_id] = item;
   }
+  map_data.gyms[item.gym_id] = item;
 
 }
 
@@ -1154,16 +1151,16 @@ $(function() {
 $(function() {
   // populate Navbar Style menu
   $selectStyle = $("#map-style")
-	
-  // Load Stylenames from locale and populate lists
-  $.getJSON("static/locales/mapstyle." + language + ".json").done(function(data){
+
+  // Load Stylenames, translate entries, and populate lists
+  $.getJSON("static/data/mapstyle.json").done(function(data){
     var styleList = []
 
     $.each(data, function(key, value){
-    styleList.push( { id: key, text: value } );
+    styleList.push( { id: key, text: i8ln(value) } );
   });
-		
-		
+
+
   // setup the stylelist
   $selectStyle.select2({
     placeholder: "Select Style",
@@ -1176,8 +1173,8 @@ $(function() {
     map.setMapTypeId(selectedStyle);
     Store.set('map_style', selectedStyle);
   });
-		
-		
+
+
   // recall saved mapstyle
   $selectStyle.val(Store.get('map_style')).trigger("change");
 
@@ -1201,7 +1198,7 @@ $(function() {
   var numberOfPokemon = 151;
 
   // Load pokemon names and populate lists
-  $.getJSON("static/locales/pokemon.json").done(function(data) {
+  $.getJSON("static/data/pokemon.json").done(function(data) {
     var pokeList = [];
 
     $.each(data, function(key, value) {
@@ -1211,7 +1208,7 @@ $(function() {
       var _types = [];
       pokeList.push({
         id: key,
-        text: value['name'] + ' - #' + key
+        text: i8ln(value['name']) + ' - #' + key
       });
       value['name'] = i8ln(value['name']);
       value['rarity'] = i8ln(value['rarity']);
